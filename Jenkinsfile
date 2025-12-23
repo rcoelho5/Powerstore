@@ -9,7 +9,7 @@ pipeline {
     stage('Run PowerStore System Health Check (SSH key)') {
       steps {
         withCredentials([sshUserPrivateKey(
-          credentialsId: 'powerstore-service-key',
+          credentialsId: 'powerstore-service-pass',
           keyFileVariable: 'SSH_KEY',
           usernameVariable: 'SSH_USER'
         )]) {
