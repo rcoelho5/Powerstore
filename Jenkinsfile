@@ -6,22 +6,22 @@ pipeline {
   }
 
   stages {
-    stage('Run PowerStore System Health Check') {
+    stage('Run PowerStore System Health Check (SSH key)') {
       steps {
-        withCredentials([usernamePassword(
-          credentialsId: 'powerstore-service-pass',
-          usernameVariable: 'PS_USER',
-          passwordVariable: 'PS_PASS'
+        withCredentials([sshUserPrivateKey(
+          credentialsId: 'powerstore-service-key',
+          keyFileVariable: 'SSH_KEY',
+          usernameVariable: 'SSH_USER'
         )]) {
-          sh '''
-            set -e
-            command -v expect >/dev/null 2>&1 || { echo "ERROR: expect no está instalado en el agente"; exit 1; }
-
-            chmod +x ./powerstore_healthcheck.exp
-            ./powerstore_healthcheck.exp
+          // En Windows usa PowerShell, no sh
+          powershell '''
+            $ErrorActionPreference = "Stop"
+            ssh -i $env:SSH_KEY -o BatchMode=yes -o ConnectTimeout=10 `
+              "$($env:SSH_USER)@$($env:PS_HOST)" "svc_health_check run"
           '''
         }
       }
     }
   }
 }
+
