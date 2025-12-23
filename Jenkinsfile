@@ -29,74 +29,70 @@ pipeline {
       }
     }
   }
+post {
+  always {
+    script {
+      // Dejamos el resultado disponible en PowerShell como variable de entorno
+      env.BUILD_RESULT = currentBuild.currentResult
+    }
 
-  post {
-    always {
-      script {
-        // Creamos una variable de entorno legible desde PowerShell
-        env.BUILD_RESULT = currentBuild.currentResult
+    powershell '''
+      $smtpServer = "10.33.138.251"
+      $smtpPort   = 2525
+      $smtpFrom   = "om_virtualization@vodafone.com"
+      $smtpTo     = "om_virtualization@vodafone.com"
+
+      $subject = "PowerStore HealthCheck - $($env:BUILD_RESULT) - $($env:JOB_NAME) #$($env:BUILD_NUMBER)"
+
+      $txtPath = Join-Path $env:WORKSPACE "powerstore_healthcheck.txt"
+      if (!(Test-Path $txtPath)) {
+        $content = "ERROR: No se encontró el fichero de salida: $txtPath"
+      } else {
+        $content = Get-Content $txtPath -Raw
       }
 
-      powershell """
-        \$smtpServer = "${env.SMTP_SERVER}"
-        \$smtpPort   = [int]"${env.SMTP_PORT}"
-        \$smtpFrom   = "${env.MAIL_FROM}"
-        \$smtpTo     = "${env.MAIL_TO}"
+      # Escape HTML básico
+      $safe = $content `
+        .Replace('&','&amp;') `
+        .Replace('<','&lt;') `
+        .Replace('>','&gt;') `
+        .Replace('"','&quot;') `
+        .Replace("'","&#39;")
 
-        \$subject = "PowerStore HealthCheck - ${env.BUILD_RESULT} - ${env.JOB_NAME} #${env.BUILD_NUMBER}"
-
-        \$txtPath = Join-Path \$env:WORKSPACE "${env.OUTFILE}"
-        if (!(Test-Path \$txtPath)) {
-          \$content = "ERROR: No se encontró el fichero de salida: \$txtPath"
-        } else {
-          \$content = Get-Content \$txtPath -Raw
-        }
-
-        # Escape HTML básico para que el contenido no rompa el correo
-        \$safe = \$content.
-          Replace('&','&amp;').
-          Replace('<','&lt;').
-          Replace('>','&gt;').
-          Replace('\"','&quot;').
-          Replace(\"'\",'&#39;')
-
-        \$body = @\"
+      $body = @"
 <html>
   <body style='font-family: Arial, sans-serif;'>
     <h2>PowerStore HealthCheck</h2>
     <p>
-      <b>Job:</b> \$env:JOB_NAME
+      <b>Job:</b> $($env:JOB_NAME)
       &nbsp;|&nbsp;
-      <b>Build:</b> #\$env:BUILD_NUMBER
+      <b>Build:</b> #$($env:BUILD_NUMBER)
       &nbsp;|&nbsp;
-      <b>Resultado:</b> ${env.BUILD_RESULT}
+      <b>Resultado:</b> $($env:BUILD_RESULT)
     </p>
     <hr/>
-    <pre style='font-family: Consolas, monospace; font-size: 12px; background: #f6f8fa; padding: 12px; border: 1px solid #ddd;'>\$safe</pre>
+    <pre style='font-family: Consolas, monospace; font-size: 12px; background: #f6f8fa; padding: 12px; border: 1px solid #ddd;'>$safe</pre>
   </body>
 </html>
-\"@
+"@
 
-        # Crear email
-        \$message = New-Object Net.Mail.MailMessage
-        \$message.From = \$smtpFrom
-        \$message.To.Add(\$smtpTo)
-        \$message.Subject = \$subject
-        \$message.IsBodyHtml = \$true
-        \$message.Body = \$body
+      $message = New-Object Net.Mail.MailMessage
+      $message.From = $smtpFrom
+      $message.To.Add($smtpTo)
+      $message.Subject = $subject
+      $message.IsBodyHtml = $true
+      $message.Body = $body
 
-        # Enviar
-        try {
-          \$smtp = New-Object Net.Mail.SmtpClient(\$smtpServer, \$smtpPort)
-          \$smtp.Send(\$message)
-          Write-Host "Email sent successfully via PowerShell SMTPClient."
-        }
-        catch {
-          Write-Host "Failed to send email: \$($_.Exception.Message)"
-          throw
-        }
-      """
-    }
+      try {
+        $smtp = New-Object Net.Mail.SmtpClient($smtpServer, $smtpPort)
+        $smtp.Send($message)
+        Write-Host "Email sent successfully via PowerShell SMTPClient."
+      }
+      catch {
+        Write-Host "Failed to send email: $($_.Exception.Message)"
+        # Si NO quieres que el job falle por el email, comenta la siguiente línea:
+        throw
+      }
+    '''
   }
 }
-
