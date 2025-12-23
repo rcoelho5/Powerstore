@@ -58,8 +58,8 @@ ${safe}
           subject: "PowerStore HealthCheck - ${currentBuild.currentResult} - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
           mimeType: 'text/html',
           body: bodyHtml,
-          #attachmentsPattern: env.OUTFILE,   // adjunta el TXT (opcional, pero útil)
-          #attachLog: false                   // si quieres adjuntar log de Jenkins, pon true
+          //attachmentsPattern: env.OUTFILE,   // adjunta el TXT (opcional, pero útil)
+          //attachLog: false                   // si quieres adjuntar log de Jenkins, pon true
         )
       }
     }
