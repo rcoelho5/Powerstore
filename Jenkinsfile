@@ -7,7 +7,7 @@ pipeline {
     HOSTKEY = '31:d8:ad:be:c4:1f:86:0f:11:fb:6f:f3:fe:91:12:d8'
     OUTFILE = 'powerstore_healthcheck.txt'
     MAIL_TO = 'om_virtualization@vodafone.com'
-    MAIL_FROM = 'om_virtualization@vodafone.com'
+    MAIL_FROM = 'rodrigo.coelho@vodafone.com'
   }
 
   stages {
