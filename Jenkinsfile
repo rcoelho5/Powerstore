@@ -1,4 +1,3 @@
-
 pipeline {
   agent any
 
@@ -7,8 +6,11 @@ pipeline {
     HOST    = '10.18.131.143'
     HOSTKEY = '31:d8:ad:be:c4:1f:86:0f:11:fb:6f:f3:fe:91:12:d8'
     OUTFILE = 'powerstore_healthcheck.txt'
-    MAIL_TO = 'om_virtualization@vodafone.com'
-    MAIL_FROM = 'om_virtualization@vodafone.com'
+
+    SMTP_SERVER = '10.33.138.251'
+    SMTP_PORT   = '2525'
+    MAIL_FROM   = 'om_virtualization@vodafone.com'
+    MAIL_TO     = 'om_virtualization@vodafone.com'
   }
 
   stages {
@@ -17,6 +19,7 @@ pipeline {
         withCredentials([usernamePassword(credentialsId: 'powerstore-service-pass',
                                           usernameVariable: 'PS_USER',
                                           passwordVariable: 'PS_PASS')]) {
+          // Guarda salida en fichero para luego enviarla por email
           bat """
             \"%PLINK%\" -ssh %PS_USER%@%HOST% -pw %PS_PASS% -batch ^
               -hostkey \"%HOSTKEY%\" ^
@@ -30,48 +33,69 @@ pipeline {
   post {
     always {
       script {
-        // Función simple para escapar HTML (evita romper el correo)
-        def escapeHtml = { String s ->
-          if (s == null) return ''
-          return s
-            .replace('&', '&amp;')
-            .replace('<', '&lt;')
-            .replace('>', '&gt;')
-            .replace('"', '&quot;')
-            .replace("'", '&#39;')
+        // Creamos una variable de entorno legible desde PowerShell
+        env.BUILD_RESULT = currentBuild.currentResult
+      }
+
+      powershell """
+        \$smtpServer = "${env.SMTP_SERVER}"
+        \$smtpPort   = [int]"${env.SMTP_PORT}"
+        \$smtpFrom   = "${env.MAIL_FROM}"
+        \$smtpTo     = "${env.MAIL_TO}"
+
+        \$subject = "PowerStore HealthCheck - ${env.BUILD_RESULT} - ${env.JOB_NAME} #${env.BUILD_NUMBER}"
+
+        \$txtPath = Join-Path \$env:WORKSPACE "${env.OUTFILE}"
+        if (!(Test-Path \$txtPath)) {
+          \$content = "ERROR: No se encontró el fichero de salida: \$txtPath"
+        } else {
+          \$content = Get-Content \$txtPath -Raw
         }
 
-        def raw  = readFile(env.OUTFILE)
-        def safe = escapeHtml(raw)
+        # Escape HTML básico para que el contenido no rompa el correo
+        \$safe = \$content.
+          Replace('&','&amp;').
+          Replace('<','&lt;').
+          Replace('>','&gt;').
+          Replace('\"','&quot;').
+          Replace(\"'\",'&#39;')
 
-        def bodyHtml = """
-          <html>
-            <body style="font-family: Arial, sans-serif;">
-              <h2>PowerStore HealthCheck</h2>
-              <p>
-                <b>Job:</b> ${env.JOB_NAME}
-                &nbsp;|&nbsp;
-                <b>Build:</b> #${env.BUILD_NUMBER}
-                &nbsp;|&nbsp;
-                <b>Resultado:</b> ${currentBuild.currentResult}
-              </p>
-              <hr/>
-              <pre style="font-family: Consolas, monospace; font-size: 12px; background: #f6f8fa; padding: 12px; border: 1px solid #ddd;">
-${safe}
-              </pre>
-            </body>
-          </html>
-        """
+        \$body = @\"
+<html>
+  <body style='font-family: Arial, sans-serif;'>
+    <h2>PowerStore HealthCheck</h2>
+    <p>
+      <b>Job:</b> \$env:JOB_NAME
+      &nbsp;|&nbsp;
+      <b>Build:</b> #\$env:BUILD_NUMBER
+      &nbsp;|&nbsp;
+      <b>Resultado:</b> ${env.BUILD_RESULT}
+    </p>
+    <hr/>
+    <pre style='font-family: Consolas, monospace; font-size: 12px; background: #f6f8fa; padding: 12px; border: 1px solid #ddd;'>\$safe</pre>
+  </body>
+</html>
+\"@
 
-        emailext(
-          to: env.MAIL_TO,
-          from: env.MAIL_FROM,
-          subject: "PowerStore HealthCheck - ${currentBuild.currentResult} - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-          mimeType: 'text/html',
-          body: bodyHtml,
-          //attachmentsPattern: env.OUTFILE
-        )
-      }
+        # Crear email
+        \$message = New-Object Net.Mail.MailMessage
+        \$message.From = \$smtpFrom
+        \$message.To.Add(\$smtpTo)
+        \$message.Subject = \$subject
+        \$message.IsBodyHtml = \$true
+        \$message.Body = \$body
+
+        # Enviar
+        try {
+          \$smtp = New-Object Net.Mail.SmtpClient(\$smtpServer, \$smtpPort)
+          \$smtp.Send(\$message)
+          Write-Host "Email sent successfully via PowerShell SMTPClient."
+        }
+        catch {
+          Write-Host "Failed to send email: \$($_.Exception.Message)"
+          throw
+        }
+      """
     }
   }
 }
