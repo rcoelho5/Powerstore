@@ -5,9 +5,8 @@ pipeline {
     PLINK   = 'C:\\Program Files\\PuTTY\\plink.exe'
     HOST    = '10.18.131.143'
     HOSTKEY = '31:d8:ad:be:c4:1f:86:0f:11:fb:6f:f3:fe:91:12:d8'
+    OUTFILE = 'powerstore_healthcheck.txt'
     MAIL_TO = 'om_virtualization@vodafone.com'
-    MAIL_FROM = 'om_virtualization@vodafone.com'
-    MAIL_REPLYTO = 'om_virtualization@vodafone.com'
   }
 
   stages {
@@ -16,6 +15,7 @@ pipeline {
         withCredentials([usernamePassword(credentialsId: 'powerstore-service-pass',
                                           usernameVariable: 'PS_USER',
                                           passwordVariable: 'PS_PASS')]) {
+          // Guardamos la salida en un fichero (incluye stderr) para poder enviarla por email
           bat """
             \"%PLINK%\" -ssh %PS_USER%@%HOST% -pw %PS_PASS% -batch ^
               -hostkey \"%HOSTKEY%\" ^
@@ -29,18 +29,9 @@ pipeline {
   post {
     always {
       script {
-        // Función simple para escapar HTML (evita romper el correo)
-        def escapeHtml = { String s ->
-          if (s == null) return ''
-          return s
-            .replace('&', '&amp;')
-            .replace('<', '&lt;')
-            .replace('>', '&gt;')
-            .replace('"', '&quot;')
-            .replace("'", '&#39;')
-        }
-
-        def safe = escapeHtml(raw)
+        // Leemos el resultado y lo escapamos para que no rompa el HTML
+        def raw  = readFile(env.OUTFILE)
+        def safe = hudson.Functions.htmlEscape(raw)
 
         def bodyHtml = """
           <html>
@@ -61,13 +52,14 @@ ${safe}
           </html>
         """
 
+        // Envío de email SIEMPRE (Passed/Failed) en HTML
         emailext(
           to: env.MAIL_TO,
-          from: env.MAIL_FROM,
-          replyTo: env.MAIL_REPLYTO,
           subject: "PowerStore HealthCheck - ${currentBuild.currentResult} - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
           mimeType: 'text/html',
           body: bodyHtml,
+          #attachmentsPattern: env.OUTFILE,   // adjunta el TXT (opcional, pero útil)
+          #attachLog: false                   // si quieres adjuntar log de Jenkins, pon true
         )
       }
     }
