@@ -6,22 +6,27 @@ pipeline {
   }
 
   stages {
-    stage('Run PowerStore System Health Check (SSH key)') {
+    stage('Run PowerStore System Health Check (password)') {
       steps {
-        withCredentials([sshUserPrivateKey(
+        withCredentials([usernamePassword(
           credentialsId: 'powerstore-service-pass',
-          keyFileVariable: 'SSH_KEY',
-          usernameVariable: 'SSH_USER'
+          usernameVariable: 'PS_USER',
+          passwordVariable: 'PS_PASS'
         )]) {
-          // En Windows usa PowerShell, no sh
           powershell '''
             $ErrorActionPreference = "Stop"
-            ssh -i $env:SSH_KEY -o BatchMode=yes -o ConnectTimeout=10 `
-              "$($env:SSH_USER)@$($env:PS_HOST)" "svc_health_check run"
+
+            # OJO: ssh.exe no acepta password no-interactivo "tal cual".
+            # Para password necesitas herramienta extra (p.ej. Posh-SSH o similar),
+            # o mover la ejecución a un agente Linux con expect.
+            Write-Host "Este camino requiere Posh-SSH (o agente Linux con expect)."
+            exit 1
           '''
         }
       }
     }
   }
 }
+``
+
 
