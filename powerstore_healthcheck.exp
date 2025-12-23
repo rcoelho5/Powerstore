@@ -1,0 +1,16 @@
+#!/usr/bin/expect -f
+set timeout 60
+
+set host $env(PS_HOST)
+set user $env(PS_USER)
+set pass $env(PS_PASS)
+
+# Si tu Jenkins agente se recrea mucho y te bloquea por host key, podrías añadir:
+# -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+# (ojo: reduce seguridad; úsalo solo en entorno controlado)
+spawn ssh $user@$host "svc_health_check run"
+
+expect {
+  -re ".*(P|p)assword:.*" { send -- "$pass\r" }
+  eof
+}
