@@ -1,3 +1,4 @@
+
 pipeline {
   agent any
 
@@ -29,8 +30,19 @@ pipeline {
   post {
     always {
       script {
+        // Función simple para escapar HTML (evita romper el correo)
+        def escapeHtml = { String s ->
+          if (s == null) return ''
+          return s
+            .replace('&', '&amp;')
+            .replace('<', '&lt;')
+            .replace('>', '&gt;')
+            .replace('"', '&quot;')
+            .replace("'", '&#39;')
+        }
+
         def raw  = readFile(env.OUTFILE)
-        def safe = hudson.Functions.htmlEscape(raw)
+        def safe = escapeHtml(raw)
 
         def bodyHtml = """
           <html>
@@ -57,9 +69,10 @@ ${safe}
           subject: "PowerStore HealthCheck - ${currentBuild.currentResult} - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
           mimeType: 'text/html',
           body: bodyHtml,
-          attachmentsPattern: env.OUTFILE
+          //attachmentsPattern: env.OUTFILE
         )
       }
     }
   }
 }
+
