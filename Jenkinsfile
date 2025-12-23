@@ -32,11 +32,9 @@ pipeline {
   post {
     always {
       script {
-        // Disponible para PowerShell
         env.BUILD_RESULT = currentBuild.currentResult
       }
 
-      // IMPORTANTE: triple comilla simple para que Groovy NO interprete $_ ni $env:
       powershell '''
         $smtpServer = "$env:SMTP_SERVER"
         $smtpPort   = [int]$env:SMTP_PORT
@@ -52,15 +50,13 @@ pipeline {
           $content = Get-Content $txtPath -Raw
         }
 
-        # Escape HTML correcto (solo para el contenido)
         $safe = $content `
-          .Replace('&','&amp;') `
-          .Replace('<','&lt;') `
-          .Replace('>','&gt;') `
-          .Replace('"','&quot;') `
-          .Replace("'","&#39;")
+          -replace '&','&amp;' `
+          -replace '<','&lt;' `
+          -replace '>','&gt;' `
+          -replace '"','&quot;' `
+          -replace "'","&#39;"
 
-        # HTML REAL (sin &lt; &gt;)
         $body = @"
 <html>
   <body style='font-family: Arial, sans-serif;'>
