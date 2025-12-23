@@ -14,7 +14,7 @@ pipeline {
 
             "%PLINK%" -ssh %PS_USER%@%HOST% -pw %PS_PASS% -batch ^
               -hostkey "%HOSTKEY%" ^
-              "svc_health_check"
+              "svc_health_check run"
           '''
         }
       }
